@@ -14,7 +14,7 @@
 
 //--- Inputs
 input string Server                  = "tcp://*:5559";  // Push server ip
-input uint   ServerDelayMilliseconds = 300;             // Push to clients delay milliseconds (Default is 300)
+input uint   ServerDelayMilliseconds = 0;  //300;       // Push to clients delay milliseconds (Default is 300)
 input bool   ServerReal              = false;           // Under real server (Default is false)
 input string AllowSymbols            = "";              // Allow Trading Symbols (Ex: EURUSDq,EURUSDx,EURUSDa)
 
@@ -56,7 +56,7 @@ void OnStart()
         Alert("Error: The property is fail, please check and try again.");
         return;
       }
-      
+    SendNotification("Starting server...");  
     StartZmqServer();
   }
 
@@ -66,6 +66,7 @@ void OnStart()
 void OnDeinit(const int reason)
   {
     StopZmqServer();
+    SendNotification("Server is down!");
   }
 
 //+------------------------------------------------------------------+
@@ -301,7 +302,7 @@ int PushOrderOpen()
 
             Print("Order Added:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
                 
-            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f", 
+            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f",
               AccountInfoInteger(ACCOUNT_LOGIN),
               "OPEN",
               OrderSymbol(), 
@@ -311,7 +312,8 @@ int PushOrderOpen()
               OrderClosePrice(),
               OrderLots(), 
               OrderStopLoss(), 
-              OrderTakeProfit()
+              OrderTakeProfit(),
+              AccountBalance()  // here 
             ));
                  
             changed ++;
@@ -344,7 +346,7 @@ int PushOrderClosed()
 
             Print("Order Closed:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
 
-            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f", 
+            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f", 
               AccountInfoInteger(ACCOUNT_LOGIN),
               "CLOSED",
               OrderSymbol(), 
@@ -354,7 +356,8 @@ int PushOrderClosed()
               OrderClosePrice(),
               OrderLots(), 
               OrderStopLoss(), 
-              OrderTakeProfit()
+              OrderTakeProfit(),
+              AccountBalance()
             ));
 
             changed ++;
@@ -417,7 +420,7 @@ int PushOrderModify()
               {
                 Print("Partially Closed:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket(), ", Before OrderId: ", orderpartiallyclosedid);
                 
-                PushToSubscriber(StringFormat("%d %s|%s|%s|%d|%f|%f|%f|%f|%f", 
+                PushToSubscriber(StringFormat("%d %s|%s|%s|%d|%f|%f|%f|%f|%f|%f", 
                   AccountInfoInteger(ACCOUNT_LOGIN),
                   "PCLOSED",
                   OrderSymbol(), 
@@ -427,14 +430,15 @@ int PushOrderModify()
                   OrderClosePrice(),
                   OrderLots(), 
                   OrderStopLoss(), 
-                  OrderTakeProfit()
+                  OrderTakeProfit(),
+                  AccountBalance()
                 ));
               }
             else
               {
                 Print("Order Modify:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
               
-                PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f", 
+                PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f", 
                   AccountInfoInteger(ACCOUNT_LOGIN),
                   "MODIFY",
                   OrderSymbol(), 
@@ -444,7 +448,8 @@ int PushOrderModify()
                   OrderClosePrice(),
                   OrderLots(), 
                   OrderStopLoss(), 
-                  OrderTakeProfit()
+                  OrderTakeProfit(),
+                  AccountBalance()
                 ));
               }
             
