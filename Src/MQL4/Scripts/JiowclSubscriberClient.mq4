@@ -14,7 +14,7 @@
 
 //--- Inputs
 input string Server                  = "tcp://localhost:5559";  // Subscribe server ip
-input uint   ServerDelayMilliseconds = 300;                     // Subscribe from server delay milliseconds (Default is 300)
+input uint   ServerDelayMilliseconds = 0;                     // Subscribe from server delay milliseconds (Default is 300)
 input bool   ServerReal              = false;                   // Under real server (Default is false)
 input string SignalAccount           = "";                      // Subscribe signal account from server (Default is empty) 
 input double MinLots                 = 0.00;                    // Limit the minimum lots (Default is 0.00)
@@ -312,7 +312,7 @@ bool ParseOrderFromSingal(const int login,
     string orderdata[];
     int    size = StringSplit(ordermessage, '|', orderdata);
     
-    if (size != 9)
+    if (size != 10)
       return false;
     
     // Order data from signal
@@ -327,6 +327,7 @@ bool ParseOrderFromSingal(const int login,
     double lots          = StringToDouble(orderdata[6]);
     double sl            = StringToDouble(orderdata[7]);
     double tp            = StringToDouble(orderdata[8]);
+    double accBal        = StringToDouble(orderdata[9]);
     
     string orderiddata[];
     int    orderidsize = StringSplit(orderdata[2], '_', orderiddata);
@@ -345,7 +346,7 @@ bool ParseOrderFromSingal(const int login,
         orderid = StrToInteger(orderdata[2]);
       }
     
-    return MakeOrder(login, op, symbol, orderid, beforeorderid, type, openprice, closeprice, lots, sl, tp);
+    return MakeOrder(login, op, symbol, orderid, beforeorderid, type, openprice, closeprice, lots, sl, tp, accBal);
   }
 
 //+------------------------------------------------------------------+
@@ -361,7 +362,8 @@ bool MakeOrder(const int login,
                const double closeprice,
                const double lots, 
                const double sl, 
-               const double tp)
+               const double tp,
+               const double accBal)
   {
     if (login <= 0 || symbol == "" || orderid == 0)
       return false;
@@ -380,7 +382,7 @@ bool MakeOrder(const int login,
         
         if (ticketid <= 0)
           {
-            ticketid = MakeOrderOpen(symbol, type, openprice, lots, sl, tp, comment);
+            ticketid = MakeOrderOpen(symbol, type, openprice, lots, sl, tp, comment, accBal);
           
             Print("Open:", symbol, ", Type:", type, ", TicketId:", ticketid);
           }
@@ -409,7 +411,7 @@ bool MakeOrder(const int login,
           {
             //string localmessage = StringFormat("%d|%d-%d|%d", login, orderid, beforeorderid, ticketid);
             localstatus = LocalClosedDataSave(login, orderid, beforeorderid, ticketid);
-            orderstatus = MakeOrderPartiallyClose(ticketid, symbol, type, closeprice, lots, sl, tp);
+            orderstatus = MakeOrderPartiallyClose(ticketid, symbol, type, closeprice, lots, sl, tp, accBal);
           
             Print("Partially Closed:", symbol, ", Type:", type);
           }
@@ -443,7 +445,8 @@ int MakeOrderOpen(const string symbol,
                   const double lots, 
                   const double sl, 
                   const double tp,
-                  const string comment)
+                  const string comment,
+                  const double accBal)
   {
     int ticketid = -1;
     
@@ -461,7 +464,7 @@ int MakeOrderOpen(const string symbol,
       return ticketid;
     
     double vprice = openprice;
-    double vlots = GetOrderLots(symbol, lots);
+    double vlots = GetOrderLots(symbol, lots, accBal);
     int    vtype = type;
     
     // The parameter price must be greater than zero
@@ -589,7 +592,8 @@ bool MakeOrderPartiallyClose(const int ticketid,
                              const double closeprice, 
                              const double lots, 
                              const double sl, 
-                             const double tp)
+                             const double tp,
+                             const double accBal)
   {
     bool result = false;
     
@@ -605,7 +609,7 @@ bool MakeOrderPartiallyClose(const int ticketid,
     if (OrderSelect(ticketid, SELECT_BY_TICKET, MODE_TRADES) == true)
       {
         double price      = closeprice;
-        double vlots      = GetOrderLots(symbol, lots);
+        double vlots      = GetOrderLots(symbol, lots, accBal);
         double vcloselots = OrderLots();
         
         if (vcloselots - vlots > 0) 
@@ -664,13 +668,13 @@ bool MakeOrderModify(const int ticketid,
 //+------------------------------------------------------------------+
 //| Get the order lots is greater than or less than max and min lots |
 //+------------------------------------------------------------------+
-double GetOrderLots(const string symbol, const double lots)
+double GetOrderLots(const string symbol, const double lots, const double accBal)
   {
     double result = lots;
   
     if (order_percentlots > 0)
       {
-        result = lots * (order_percentlots / 100);
+        result = lots * (order_percentlots / 100) * AccountBalance()/accBal;
       }
     
     if (order_minlots > 0.00)
