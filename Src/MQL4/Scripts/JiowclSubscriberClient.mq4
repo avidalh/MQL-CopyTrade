@@ -14,7 +14,7 @@
 
 //--- Inputs
 input string Server                  = "tcp://localhost:5559";  // Subscribe server ip
-input uint   ServerDelayMilliseconds = 0;                     // Subscribe from server delay milliseconds (Default is 300)
+input uint   ServerDelayMilliseconds = 100;                     // Subscribe from server delay milliseconds (Default is 300)
 input bool   ServerReal              = false;                   // Under real server (Default is false)
 input string SignalAccount           = "";                      // Subscribe signal account from server (Default is empty) 
 input double MinLots                 = 0.00;                    // Limit the minimum lots (Default is 0.00)
