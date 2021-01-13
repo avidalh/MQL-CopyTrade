@@ -14,7 +14,7 @@
 
 //--- Inputs
 input string Server                  = "tcp://*:5559";  // Push server ip
-input uint   ServerDelayMilliseconds = 0;  //300;       // Push to clients delay milliseconds (Default is 300)
+input uint   ServerDelayMilliseconds = 100;  //300;      // Push to clients delay milliseconds (Default is 300)
 input bool   ServerReal              = false;           // Under real server (Default is false)
 input string AllowSymbols            = "";              // Allow Trading Symbols (Ex: EURUSDq,EURUSDx,EURUSDa)
 
