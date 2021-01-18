@@ -505,31 +505,31 @@ int MakeOrderOpen(const string symbol,
     switch (vtype)
       {
         case OP_BUY:
-          ticketid = OrderSend(symbol, OP_BUY, vlots, vprice, order_slippage, sl, tp, comment, 0, 0, clrYellow);
+          ticketid = OrderSend(symbol, OP_BUY, vlots, vprice, order_slippage, sl, tp, comment, 0, 0, clrNONE);
           break;
     
         case OP_SELL:
-          ticketid = OrderSend(symbol, OP_SELL, vlots, vprice, order_slippage, sl, tp, comment, 0, 0, clrYellow);
+          ticketid = OrderSend(symbol, OP_SELL, vlots, vprice, order_slippage, sl, tp, comment, 0, 0, clrNONE);
           break;
     
         case OP_BUYLIMIT:
           if (openprice > 0.00)
-            ticketid = OrderSend(symbol, OP_BUYLIMIT, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrYellow);
+            ticketid = OrderSend(symbol, OP_BUYLIMIT, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrNONE);
           break;
     
         case OP_BUYSTOP:
           if (openprice > 0.00)
-            ticketid = OrderSend(symbol, OP_BUYSTOP, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrYellow);
+            ticketid = OrderSend(symbol, OP_BUYSTOP, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrNONE);
           break;
     
         case OP_SELLLIMIT:
           if (openprice > 0.00)
-            ticketid = OrderSend(symbol, OP_SELLLIMIT, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrYellow);
+            ticketid = OrderSend(symbol, OP_SELLLIMIT, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrNONE);
           break;
     
         case OP_SELLSTOP:
           if (openprice > 0.00)
-            ticketid = OrderSend(symbol, OP_SELLSTOP, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrYellow);
+            ticketid = OrderSend(symbol, OP_SELLSTOP, vlots, openprice, order_slippage, sl, tp, comment, 0, 0, clrNONE);
           break;
       }
     
@@ -575,7 +575,7 @@ bool MakeOrderClose(const int ticketid,
               break;
             
             default:
-              result = OrderClose(ticketid, OrderLots(), price, order_slippage, clrYellow); 
+              result = OrderClose(ticketid, OrderLots(), price, order_slippage, clrNONE); 
               break;  
           }
       }
@@ -629,7 +629,7 @@ bool MakeOrderPartiallyClose(const int ticketid,
               break;
             
             default:
-              result = OrderClose(ticketid, vlots, price, order_slippage, clrYellow); 
+              result = OrderClose(ticketid, vlots, price, order_slippage, clrNONE); 
               break;  
           }
       }
@@ -659,7 +659,7 @@ bool MakeOrderModify(const int ticketid,
     
     if (OrderSelect(ticketid, SELECT_BY_TICKET, MODE_TRADES) == true)
       {         
-        result = OrderModify(ticketid, openprice, sl, tp, 0, clrYellow); 
+        result = OrderModify(ticketid, openprice, sl, tp, 0, clrNONE); 
       }
         
     return result;
