@@ -14,7 +14,7 @@
 
 //--- Inputs
 input string Server                  = "tcp://*:5559";  // Push server ip
-input uint   ServerDelayMilliseconds = 20;  //300;      // Push to clients delay milliseconds (Default is 300)
+input uint   ServerDelayMilliseconds = 300;  //300;      // Push to clients delay milliseconds (Default is 300)
 input bool   ServerReal              = false;           // Under real server (Default is false)
 input string AllowSymbols            = "";              // Allow Trading Symbols (Ex: EURUSDq,EURUSDx,EURUSDa)
 
@@ -42,6 +42,8 @@ int    orderpartiallyclosedid = -1;
 
 int    prev_ordersize         = 0;
 
+int orderids_closed[];
+
 //--- Globales File
 string local_symbolallow[];
 int    symbolallow_size = 0;
@@ -50,14 +52,14 @@ int    symbolallow_size = 0;
 //| Script program start function                                    |
 //+------------------------------------------------------------------+
 void OnStart()
-  {  
-    if (DetectEnvironment() == false)
-      {
-        Alert("Error: The property is fail, please check and try again.");
-        return;
-      }
-    SendNotification("Starting server...");  
-    StartZmqServer();
+  {
+   if(DetectEnvironment() == false)
+     {
+      Alert("Error: The property is fail, please check and try again.");
+      return;
+     }
+   SendNotification("Starting server...");
+   StartZmqServer();
   }
 
 //+------------------------------------------------------------------+
@@ -65,8 +67,8 @@ void OnStart()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
-    StopZmqServer();
-    SendNotification("Server is down!");
+   StopZmqServer();
+   SendNotification("Server is down!");
   }
 
 //+------------------------------------------------------------------+
@@ -74,90 +76,92 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 bool DetectEnvironment()
   {
-    if (Server == "") 
+   if(Server == "")
       return false;
-    
-    if (ServerReal == true && IsDemo())
-      {
-        Print("Account is Demo, please switch the Demo account to Real account.");
-        return false;
-      }
-      
-    if (IsDllsAllowed() == false)
-      {
-        Print("DLL call is not allowed. ", app_name, " cannot run.");
-        return false;
-      }
-    
-    zmq_server        = Server;
-    zmq_pushdelay     = (ServerDelayMilliseconds > 0) ? ServerDelayMilliseconds : 10;
-    zmq_runningstatus = false;
-    
-    // Load the Symbol allow map
-    if (AllowSymbols != "")
-      {
-        string symboldata[];
-        int    symbolsize = StringSplit(AllowSymbols, ',', symboldata);
-        int    symbolindex = 0;
-        
-        ArrayResize(local_symbolallow, symbolsize);
-        
-        for (symbolindex=0; symbolindex<symbolsize; symbolindex++)
-          {
-            if (symboldata[symbolindex] == "")
-              continue;
-              
-            local_symbolallow[symbolindex] = symboldata[symbolindex];
-          }
-          
-        symbolallow_size = symbolsize;
-      }
 
-    return true;
+   if(ServerReal == true && IsDemo())
+     {
+      Print("Account is Demo, please switch the Demo account to Real account.");
+      return false;
+     }
+
+   if(IsDllsAllowed() == false)
+     {
+      Print("DLL call is not allowed. ", app_name, " cannot run.");
+      return false;
+     }
+
+   zmq_server        = Server;
+   zmq_pushdelay     = (ServerDelayMilliseconds > 0) ? ServerDelayMilliseconds : 10;
+   zmq_runningstatus = false;
+
+// Load the Symbol allow map
+   if(AllowSymbols != "")
+     {
+      string symboldata[];
+      int    symbolsize = StringSplit(AllowSymbols, ',', symboldata);
+      int    symbolindex = 0;
+
+      ArrayResize(local_symbolallow, symbolsize);
+
+      for(symbolindex=0; symbolindex<symbolsize; symbolindex++)
+        {
+         if(symboldata[symbolindex] == "")
+            continue;
+
+         local_symbolallow[symbolindex] = symboldata[symbolindex];
+        }
+
+      symbolallow_size = symbolsize;
+     }
+
+   return true;
   }
 
 //+------------------------------------------------------------------+
 //| Start the zmq server                                             |
 //+------------------------------------------------------------------+
 void StartZmqServer()
-  {  
-    if (zmq_server == "")
+  {
+   if(zmq_server == "")
       return;
-      
-    int result = publisher.bind(zmq_server);
-    
-    if (result != 1)
-      {
-        Alert("Error: Unable to bind server, please check your port.");
-        return;
-      }
-    
-    Print("Load Server: ", zmq_server);
-    
-    // Init all the current orders to cache.
-    // The signal only sends a new order or modify order.
-    GetCurrentOrdersOnStart();
-    
-    int  changed     = 0;
-    uint delay       = zmq_pushdelay;
-    uint ticketstart = 0; 
-    uint tickcount   = 0;
-    
-    zmq_runningstatus = true;
-   
-    while (!IsStopped())
-      {
-        ticketstart = GetTickCount();
-        changed = GetCurrentOrdersOnTicket();
-        
-        if (changed > 0)
-          UpdateCurrentOrdersOnTicket();
-        
-        tickcount = GetTickCount() - ticketstart;
-        
-        if (delay > tickcount)
-          Sleep(delay-tickcount-2);
-      }
+
+   int result = publisher.bind(zmq_server);
+
+   if(result != 1)
+     {
+      Alert("Error: Unable to bind server, please check your port.");
+      return;
+     }
+
+   Print("Load Server: ", zmq_server);
+
+// Init all the current orders to cache.
+// The signal only sends a new order or modify order.
+   GetCurrentOrdersOnStart();
+
+   int  changed     = 0;
+   uint delay       = zmq_pushdelay;
+   uint ticketstart = 0;
+   uint tickcount   = 0;
+
+   zmq_runningstatus = true;
+
+   while(!IsStopped())
+     {
+      ticketstart = GetTickCount();
+      changed = GetCurrentOrdersOnTicket();
+
+      if(changed > 0)
+         UpdateCurrentOrdersOnTicket_open();
+      if(changed < 0)
+         UpdateCurrentOrdersOnTicket_close();
+
+      tickcount = GetTickCount() - ticketstart;
+
+      if(delay > tickcount)
+         Sleep(delay-tickcount-2);
+     }
   }
 
 //+------------------------------------------------------------------+
@@ -165,22 +169,22 @@ void StartZmqServer()
 //+------------------------------------------------------------------+
 void StopZmqServer()
   {
-    if (zmq_server == "") 
+   if(zmq_server == "")
       return;
-    
-    ArrayFree(orderids);
-    ArrayFree(orderopenprice);
-    ArrayFree(orderlot);
-    ArrayFree(ordersl);
-    ArrayFree(ordertp);
-    ArrayFree(local_symbolallow);
-    
-    Print("Unload Server: ", zmq_server);
-    
-    if (zmq_runningstatus == true)
+
+   ArrayFree(orderids);
+   ArrayFree(orderopenprice);
+   ArrayFree(orderlot);
+   ArrayFree(ordersl);
+   ArrayFree(ordertp);
+   ArrayFree(local_symbolallow);
+
+   Print("Unload Server: ", zmq_server);
+
+   if(zmq_runningstatus == true)
       publisher.unbind(zmq_server);
-      
-    zmq_runningstatus = false;
+
+   zmq_runningstatus = false;
   }
 
 //+------------------------------------------------------------------+
@@ -188,139 +192,208 @@ void StopZmqServer()
 //+------------------------------------------------------------------+
 void GetCurrentOrdersOnStart()
   {
-    prev_ordersize = 0;
-    ordersize      = OrdersTotal();
-    
-    if (ordersize == prev_ordersize)
+   prev_ordersize = 0;
+   ordersize      = OrdersTotal();
+
+   if(ordersize == prev_ordersize)
       return;
 
-    if (ordersize > 0)
-      {
-        ArrayResize(orderids, ordersize);
-        ArrayResize(orderopenprice, ordersize);
-        ArrayResize(orderlot, ordersize);
-        ArrayResize(ordersl, ordersize);
-        ArrayResize(ordertp, ordersize);
-      }
-    
-    prev_ordersize = ordersize;
-    
-    int orderindex = 0;
-    
-    // Save the orders to cache
-    for (orderindex=0; orderindex<ordersize; orderindex++)
-      {
-        if (OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
-          continue;
-            
-        orderids[orderindex]       = OrderTicket();
-        orderopenprice[orderindex] = OrderOpenPrice();
-        orderlot[orderindex]       = OrderLots();
-        ordersl[orderindex]        = OrderStopLoss();
-        ordertp[orderindex]        = OrderTakeProfit();
-      }
+   if(ordersize > 0)
+     {
+      ArrayResize(orderids, ordersize);
+      ArrayResize(orderopenprice, ordersize);
+      ArrayResize(orderlot, ordersize);
+      ArrayResize(ordersl, ordersize);
+      ArrayResize(ordertp, ordersize);
+     }
+
+   prev_ordersize = ordersize;
+
+   int orderindex = 0;
+
+// Save the orders to cache
+   for(orderindex=0; orderindex<ordersize; orderindex++)
+     {
+      if(OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
+         continue;
+
+      orderids[orderindex]       = OrderTicket();
+      orderopenprice[orderindex] = OrderOpenPrice();
+      orderlot[orderindex]       = OrderLots();
+      ordersl[orderindex]        = OrderStopLoss();
+      ordertp[orderindex]        = OrderTakeProfit();
+     }
   }
 
 //+------------------------------------------------------------------+
 //| Get all of the orders                                            |
 //+------------------------------------------------------------------+
 int GetCurrentOrdersOnTicket()
-  { 
-    ordersize = OrdersTotal();
-       
-    int changed = 0;
-             
-    if (ordersize > prev_ordersize)
-      {
-        // Trade has been added
-        changed = PushOrderOpen();
-      }
-    else if (ordersize < prev_ordersize)
-      {
-        // Trade has been closed
-        changed = PushOrderClosed();
-      }
-    else if (ordersize == prev_ordersize)
-      {
-        // Trade has been modify
-        changed = PushOrderModify();
-      }
-      
-    return changed;
+  {
+   ordersize = OrdersTotal();
+   //Print("ordersize:", ordersize);
+
+   int changed = 0;
+
+   if(ordersize > prev_ordersize)
+     {
+      // Trade has been added
+      changed = PushOrderOpen();
+     }
+   else
+      if(ordersize < prev_ordersize)
+        {
+         // Trade has been closed
+         changed = PushOrderClosed();
+        }
+      else
+         if(ordersize == prev_ordersize)
+           {
+            // Trade has been modify
+            changed = PushOrderModify();
+           }
+
+   return changed;
   }
 
 //+------------------------------------------------------------------+
-//| Update all of the orders status                                  |
+//| Update all of the orders status after addingor  opening          |
 //+------------------------------------------------------------------+
-void UpdateCurrentOrdersOnTicket()
-  {     
-    if (ordersize > 0)
-      {
-        ArrayResize(orderids, ordersize);
-        ArrayResize(orderopenprice, ordersize);
-        ArrayResize(orderlot, ordersize);
-        ArrayResize(ordersl, ordersize);
-        ArrayResize(ordertp, ordersize);
-      }
-    
-    int orderindex = 0;
-    
+void UpdateCurrentOrdersOnTicket_open()
+  {
+   
+   //Print("OS: ", ordersize, ". POS: ", prev_ordersize);
+   
+   if(ordersize > 0)
+     {
+      ArrayResize(orderids, ordersize);
+      ArrayResize(orderopenprice, ordersize);
+      ArrayResize(orderlot, ordersize);
+      ArrayResize(ordersl, ordersize);
+      ArrayResize(ordertp, ordersize);
+     }
+
+   int orderindex = 0;
+
     // Save the orders to cache
+
     for (orderindex=0; orderindex<ordersize; orderindex++)
       {
         if (OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
           continue;
-         
+        
         orderids[orderindex]       = OrderTicket();
         orderopenprice[orderindex] = OrderOpenPrice();
         orderlot[orderindex]       = OrderLots();
         ordersl[orderindex]        = OrderStopLoss();
         ordertp[orderindex]        = OrderTakeProfit();
       }
-    
-    // Changed the old orders count as current orders count
-    prev_ordersize = ordersize;
+    ArrayFree(orderids_closed);
+
+// Changed the old orders count as current orders count
+   prev_ordersize = ordersize;
   }
+  
+  
+//+------------------------------------------------------------------+
+//| Update all of the orders status after removing closing           |
+//+------------------------------------------------------------------+
+void UpdateCurrentOrdersOnTicket_close()
+  {
+   datetime ctm;
+   int oldOrderIds [];
+   ArrayCopy(oldOrderIds, orderids);
+   
+   //Print("OS: ", ordersize, ". POS: ", prev_ordersize);
+   
+   if(ordersize > 0)
+     {
+      ArrayResize(orderids, ordersize);
+      ArrayResize(orderopenprice, ordersize);
+      ArrayResize(orderlot, ordersize);
+      ArrayResize(ordersl, ordersize);
+      ArrayResize(ordertp, ordersize);
+     }
+
+   int orderindex = 0;
+   int count = 0;
+   int len = 0;
+    
+    // Save the orders to cache
+    // get the length
+    len = ArraySize(oldOrderIds);
+    
+    for (orderindex=0; orderindex<len; orderindex++)
+      {
+        //if (OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
+        if (OrderSelect(oldOrderIds[orderindex], SELECT_BY_TICKET, MODE_TRADES) == false)
+          continue;
+         
+        ctm = OrderCloseTime();
+        if (ctm == 0) {
+             //Print("Updating: ", oldOrderIds[orderindex], ". Count: ", count);
+             orderids[count]       = OrderTicket();
+             orderopenprice[count] = OrderOpenPrice();
+             orderlot[count]       = OrderLots();
+             ordersl[count]        = OrderStopLoss();
+             ordertp[count]        = OrderTakeProfit();
+             count++;
+        } else if(!isInArray(orderids_closed, oldOrderIds[orderindex])) {
+             //Print("Updating: ", oldOrderIds[orderindex], ". Count: ", count);
+             orderids[count]       = OrderTicket();
+             orderopenprice[count] = OrderOpenPrice();
+             orderlot[count]       = OrderLots();
+             ordersl[count]        = OrderStopLoss();
+             ordertp[count]        = OrderTakeProfit();
+             count++;
+        }
+      }
+    ArrayFree(orderids_closed);
+
+// Changed the old orders count as current orders count
+   prev_ordersize = ordersize;
+  }
+
 
 //+------------------------------------------------------------------+
 //| Push the open order to all of the subscriber                     |
 //+------------------------------------------------------------------+
 int PushOrderOpen()
   {
-    int changed    = 0;
-    int orderindex = 0;
- 
-    for (orderindex=0; orderindex<ordersize; orderindex++)
-      {
-        if (OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
-          continue;
-            
-        if (FindOrderInPrevPool(OrderTicket()) == false)
-          {
-            if (GetOrderSymbolAllowed(OrderSymbol()) == false)
-              continue;
+   int changed    = 0;
+   int orderindex = 0;
 
-            Print("Order Added:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
-                
-            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f",
-              AccountInfoInteger(ACCOUNT_LOGIN),
-              "OPEN",
-              OrderSymbol(), 
-              OrderTicket(),
-              OrderType(), 
-              OrderOpenPrice(),
-              OrderClosePrice(),
-              OrderLots(), 
-              OrderStopLoss(), 
-              OrderTakeProfit(),
-              AccountBalance()  // here 
-            ));
-                 
-            changed ++;
-          }
-      }
-     
-    return changed;
+   for(orderindex=0; orderindex<ordersize; orderindex++)
+     {
+      if(OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
+         continue;
+
+      if(FindOrderInPrevPool(OrderTicket()) == false)
+        {
+         if(GetOrderSymbolAllowed(OrderSymbol()) == false)
+            continue;
+
+         Print("Order Added:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
+
+         PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f",
+                                       AccountInfoInteger(ACCOUNT_LOGIN),
+                                       "OPEN",
+                                       OrderSymbol(),
+                                       OrderTicket(),
+                                       OrderType(),
+                                       OrderOpenPrice(),
+                                       OrderClosePrice(),
+                                       OrderLots(),
+                                       OrderStopLoss(),
+                                       OrderTakeProfit(),
+                                       AccountBalance()  // here
+                                      ));
+
+         changed ++;
+        }
+     }
+
+   return changed;
   }
 
 //+------------------------------------------------------------------+
@@ -328,43 +401,45 @@ int PushOrderOpen()
 //+------------------------------------------------------------------+
 int PushOrderClosed()
   {
-    int      changed    = 0;
-    int      orderindex = 0;
-    datetime ctm;
-  
-    for (orderindex=0; orderindex<prev_ordersize; orderindex++)
-      {         
-        if (OrderSelect(orderids[orderindex], SELECT_BY_TICKET, MODE_TRADES) == false)
-          continue;
+   int      changed    = 0;
+   int      orderindex = 0;
+   datetime ctm;
 
-        ctm = OrderCloseTime();
-            
-        if (ctm > 0)
-          {
-            if (GetOrderSymbolAllowed(OrderSymbol()) == false)
-              continue;
+   for(orderindex=0; orderindex<prev_ordersize; orderindex++)
+     {
+      //Print("OrderID: ", orderids[orderindex], "(index: ", orderindex, ")");
+      if(OrderSelect(orderids[orderindex], SELECT_BY_TICKET, MODE_TRADES) == false)
+         continue;
 
-            Print("Order Closed:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
+      ctm = OrderCloseTime();
 
-            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f", 
-              AccountInfoInteger(ACCOUNT_LOGIN),
-              "CLOSED",
-              OrderSymbol(), 
-              OrderTicket(),
-              OrderType(), 
-              OrderOpenPrice(),
-              OrderClosePrice(),
-              OrderLots(), 
-              OrderStopLoss(), 
-              OrderTakeProfit(),
-              AccountBalance()
-            ));
+      if(ctm > 0)
+        {
+         if(GetOrderSymbolAllowed(OrderSymbol()) == false)
+            continue;
+         
+         arrayPush(orderids_closed, OrderTicket());
+         Print("Order Closed:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
 
-            changed ++;
-          }
-      }
-          
-    return changed;
+         PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f",
+                                       AccountInfoInteger(ACCOUNT_LOGIN),
+                                       "CLOSED",
+                                       OrderSymbol(),
+                                       OrderTicket(),
+                                       OrderType(),
+                                       OrderOpenPrice(),
+                                       OrderClosePrice(),
+                                       OrderLots(),
+                                       OrderStopLoss(),
+                                       OrderTakeProfit(),
+                                       AccountBalance()
+                                      ));
+
+         changed --;
+        }
+     }
+
+   return changed;
   }
 
 //+------------------------------------------------------------------+
@@ -372,92 +447,92 @@ int PushOrderClosed()
 //+------------------------------------------------------------------+
 int PushOrderModify()
   {
-    int changed    = 0;
-    int orderindex = 0;
-    
-    for (orderindex=0; orderindex<ordersize; orderindex++)
-      {
-        orderchanged           = false;
-        orderpartiallyclosed   = false;
-        orderpartiallyclosedid = -1;
+   int changed    = 0;
+   int orderindex = 0;
 
-        if (OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
-          continue;          
+   for(orderindex=0; orderindex<ordersize; orderindex++)
+     {
+      orderchanged           = false;
+      orderpartiallyclosed   = false;
+      orderpartiallyclosedid = -1;
 
-        if (GetOrderSymbolAllowed(OrderSymbol()) == false)
-          continue;  
+      if(OrderSelect(orderindex, SELECT_BY_POS, MODE_TRADES) == false)
+         continue;
 
-        if (orderlot[orderindex] != OrderLots())
-          {
-            orderchanged = true;
-            
-            string ordercomment = OrderComment();
-            int    orderid      = 0;
-            
-            // Partially closed a trade
-            // Partially closed is a different lots from trade
-            if (StringFind(ordercomment, "from #", 0) >= 0)
+      if(GetOrderSymbolAllowed(OrderSymbol()) == false)
+         continue;
+
+      if(orderlot[orderindex] != OrderLots())
+        {
+         orderchanged = true;
+
+         string ordercomment = OrderComment();
+         int    orderid      = 0;
+
+         // Partially closed a trade
+         // Partially closed is a different lots from trade
+         if(StringFind(ordercomment, "from #", 0) >= 0)
+           {
+            if(StringReplace(ordercomment, "from #", "") >= 0)
               {
-                if (StringReplace(ordercomment, "from #", "") >= 0)
-                  {
-                    orderpartiallyclosed   = true;
-                    orderpartiallyclosedid = StringToInteger(ordercomment);
-                  }
+               orderpartiallyclosed   = true;
+               orderpartiallyclosedid = StringToInteger(ordercomment);
               }
-          }
+           }
+        }
 
-        if (ordersl[orderindex] != OrderStopLoss())
-          orderchanged = true;
+      if(ordersl[orderindex] != OrderStopLoss())
+         orderchanged = true;
 
-        if (ordertp[orderindex] != OrderTakeProfit())
-          orderchanged = true;
+      if(ordertp[orderindex] != OrderTakeProfit())
+         orderchanged = true;
 
-        // Temporarily method for recognize modify order or part-closed order
-        // Part-close order will close order by a litte lots and re-generate an new order with new order id
-        if (orderchanged == true)
-          {
-            if (orderpartiallyclosed == true)
-              {
-                Print("Partially Closed:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket(), ", Before OrderId: ", orderpartiallyclosedid);
-                
-                PushToSubscriber(StringFormat("%d %s|%s|%s|%d|%f|%f|%f|%f|%f|%f", 
-                  AccountInfoInteger(ACCOUNT_LOGIN),
-                  "PCLOSED",
-                  OrderSymbol(), 
-                  OrderTicket() + "_" + orderpartiallyclosedid,
-                  OrderType(), 
-                  OrderOpenPrice(),
-                  OrderClosePrice(),
-                  OrderLots(), 
-                  OrderStopLoss(), 
-                  OrderTakeProfit(),
-                  AccountBalance()
-                ));
-              }
-            else
-              {
-                Print("Order Modify:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
-              
-                PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f", 
-                  AccountInfoInteger(ACCOUNT_LOGIN),
-                  "MODIFY",
-                  OrderSymbol(), 
-                  OrderTicket(),
-                  OrderType(), 
-                  OrderOpenPrice(),
-                  OrderClosePrice(),
-                  OrderLots(), 
-                  OrderStopLoss(), 
-                  OrderTakeProfit(),
-                  AccountBalance()
-                ));
-              }
-            
-            changed ++;
-          }
-      }
+      // Temporarily method for recognize modify order or part-closed order
+      // Part-close order will close order by a litte lots and re-generate an new order with new order id
+      if(orderchanged == true)
+        {
+         if(orderpartiallyclosed == true)
+           {
+            Print("Partially Closed:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket(), ", Before OrderId: ", orderpartiallyclosedid);
 
-    return changed;
+            PushToSubscriber(StringFormat("%d %s|%s|%s|%d|%f|%f|%f|%f|%f|%f",
+                                          AccountInfoInteger(ACCOUNT_LOGIN),
+                                          "PCLOSED",
+                                          OrderSymbol(),
+                                          OrderTicket() + "_" + orderpartiallyclosedid,
+                                          OrderType(),
+                                          OrderOpenPrice(),
+                                          OrderClosePrice(),
+                                          OrderLots(),
+                                          OrderStopLoss(),
+                                          OrderTakeProfit(),
+                                          AccountBalance()
+                                         ));
+           }
+         else
+           {
+            Print("Order Modify:", OrderSymbol(), ", Size:", ArraySize(orderids), ", OrderId:", OrderTicket());
+
+            PushToSubscriber(StringFormat("%d %s|%s|%d|%d|%f|%f|%f|%f|%f|%f",
+                                          AccountInfoInteger(ACCOUNT_LOGIN),
+                                          "MODIFY",
+                                          OrderSymbol(),
+                                          OrderTicket(),
+                                          OrderType(),
+                                          OrderOpenPrice(),
+                                          OrderClosePrice(),
+                                          OrderLots(),
+                                          OrderStopLoss(),
+                                          OrderTakeProfit(),
+                                          AccountBalance()
+                                         ));
+           }
+
+         changed ++;
+        }
+     }
+
+   return changed;
   }
 
 //+------------------------------------------------------------------+
@@ -465,14 +540,14 @@ int PushOrderModify()
 //+------------------------------------------------------------------+
 bool PushToSubscriber(const string message)
   {
-    if (message == "")
+   if(message == "")
       return false;
-  
-    ZmqMsg replymsg(message);
-    
-    int result = publisher.send(replymsg);
-    
-    return (result == 1) ? true : false;
+
+   ZmqMsg replymsg(message);
+
+   int result = publisher.send(replymsg);
+
+   return (result == 1) ? true : false;
   }
 
 //+------------------------------------------------------------------+
@@ -480,30 +555,30 @@ bool PushToSubscriber(const string message)
 //+------------------------------------------------------------------+
 bool GetOrderSymbolAllowed(const string symbol)
   {
-    bool result = true;
-    
-    if (symbolallow_size == 0)
+   bool result = true;
+
+   if(symbolallow_size == 0)
       return result;
-    
-    // Change result as FALSE when allow list is not empty
-    result = false;
-      
-    int symbolindex = 0;
-    
-    for (symbolindex=0; symbolindex<symbolallow_size; symbolindex++)
-      {
-        if (local_symbolallow[symbolindex] == "")
-          continue;
-      
-        if (symbol == local_symbolallow[symbolindex])
-          {
-            result = true;
-            
-            break;
-          }
-      }
-    
-    return result;
+
+// Change result as FALSE when allow list is not empty
+   result = false;
+
+   int symbolindex = 0;
+
+   for(symbolindex=0; symbolindex<symbolallow_size; symbolindex++)
+     {
+      if(local_symbolallow[symbolindex] == "")
+         continue;
+
+      if(symbol == local_symbolallow[symbolindex])
+        {
+         result = true;
+
+         break;
+        }
+     }
+
+   return result;
   }
 
 //+------------------------------------------------------------------+
@@ -511,17 +586,42 @@ bool GetOrderSymbolAllowed(const string symbol)
 //+------------------------------------------------------------------+
 bool FindOrderInPrevPool(const int order_ticketid)
   {
-    int orderfound = 0;
-    int orderindex = 0;
-    
-    if (prev_ordersize == 0)
+   int orderfound = 0;
+   int orderindex = 0;
+
+   if(prev_ordersize == 0)
       return false;
-  
-    for (orderindex=0; orderindex<prev_ordersize; orderindex++)
-      {
-        if (order_ticketid == orderids[orderindex])
-          orderfound ++;
-      }
-      
-    return (orderfound > 0) ? true : false;
+
+   for(orderindex=0; orderindex<prev_ordersize; orderindex++)
+     {
+      if(order_ticketid == orderids[orderindex])
+         orderfound ++;
+     }
+
+   return (orderfound > 0) ? true : false;
   }
+//+------------------------------------------------------------------+
+
+// Arrays push and pop helpers
+
+void arrayPush(int& array[], int dataToPush) {
+   int count = ArrayResize(array, ArraySize(array) + 1);
+   array[ArraySize(array) - 1] = dataToPush;
+}
+
+int arrayPop(int& array[]) {
+   int data = array[ArraySize(array) - 1];
+   ArrayResize(array, ArraySize(array) - 1);
+   return (data);
+}
+
+bool isInArray(int& array[], int id) {
+   int i = 0;
+   int len = ArraySize(array);
+   for (i = 0; i < len; i++) {
+      if (id == array[i]) {
+         return true;
+      }
+   }
+   return false;
+}
